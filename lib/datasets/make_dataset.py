@@ -3,6 +3,7 @@ from .dataset_catalog import DatasetCatalog
 import torch
 import torch.utils.data
 import imp
+import importlib.util
 import os
 from .collate_batch import make_collator
 import numpy as np
@@ -23,7 +24,11 @@ def _dataset_factory(is_train, is_val):
     else:
         module = cfg.test_dataset_module
         path = cfg.test_dataset_path
-    dataset = imp.load_source(module, path).Dataset
+    # replace original for imp is deprecated
+    spec = importlib.util.spec_from_file_location(module, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    dataset = getattr(module, 'Dataset')
     return dataset
 
 
@@ -36,8 +41,12 @@ def make_dataset(cfg, is_train=True):
         args = cfg.test_dataset
         module = cfg.test_dataset_module
         path = cfg.test_dataset_path
-    dataset = imp.load_source(module, path).Dataset
-    dataset = dataset(**args)
+    # replace original for imp is deprecated
+    spec = importlib.util.spec_from_file_location(module, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    dataset_class = getattr(module, 'Dataset')
+    dataset = dataset_class(**args)
     return dataset
 
 

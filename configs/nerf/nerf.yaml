@@ -15,13 +15,21 @@ task_arg:
     N_rays: 1024 # number of rays per training iteration
     chunk_size: 4096 # chunkify
     white_bkgd: True # use white background
-    cascade_samples: [64, 128] # importance sampling, you can set it to [64] for the initial implemetation
+    no_batching: False
+    netchunk: 65536 # 1024 * 64
+#    cascade_samples: [64, 128] # importance sampling, you can set it to [64] for the initial implemetation
 
 network:
     nerf:
         W: 256 # width
         D: 8 # depth
-        V_D: 1 # appearance depth
+        V_D: 1 # appearance depth?? what is it
+        W_fine: 256
+        D_fine: 8
+        # raw net samples
+        N_samples: 64
+        # fine net samples
+        N_importance: 128
     xyz_encoder:
         type: 'frequency' # positional encoding
         input_dim: 3
@@ -30,12 +38,30 @@ network:
         type: 'frequency'
         input_dim: 3
         freq: 4
+    # positional encoding (3D location)
+    multires: 10
+    # positional encoding (2D direction)
+    multires_views: 4
+    # set 0 for default positional encoding, -1 for none
+    i_embed: 0
+    use_viewdirs: True
+    perturb: 1.
+#    white_bkgd: True
+    raw_noise_std: 0.
+    # for blender dataset settings in nerf-pytorch
+    near: 2.
+    far: 6.
+#    N_rand: 1024
+    no_ndc: Ture
+    lindisp: False
+#    chunk: 1024 * 32
 
 train_dataset:
     data_root: 'data/nerf_synthetic'
     split: 'train'
     input_ratio: 1. # input image ratio, you can set it to 0.5 to acclerate training
     cams: [0, -1, 1] # input cameras, you can use this variable to select training images
+
 
 test_dataset:
     data_root: 'data/nerf_synthetic'
@@ -44,10 +70,11 @@ test_dataset:
     cams: [0, -1, 100]
 
 train:
-    batch_size: 1
+    batch_size: 2
     lr: 5e-4
     weight_decay: 0.
     epoch: 400
+    shuffle: True
     scheduler:
         type: 'exponential'
         gamma: 0.1
@@ -56,9 +83,14 @@ train:
 
 test:
     batch_size: 1
+    test_perturb: False
+    test_raw_noise_std: 0.
 
 ep_iter: 500
 save_ep: 20
 eval_ep: 20       # 10000 iterations
 save_latest_ep: 5 # 2500 iterations
 log_interval: 10
+
+# new added
+render_only: False

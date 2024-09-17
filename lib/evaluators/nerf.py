@@ -21,6 +21,7 @@ class Evaluator:
         os.system('mkdir -p ' + cfg.result_dir + '/vis')
 
     def evaluate(self, output, batch):
+        # TODO: maybe need to re-write this func for nerf
         # assert image number = 1
         H, W = batch['meta']['H'].item(), batch['meta']['W'].item()
         pred_rgb = output['rgb'][0].reshape(H, W, 3).detach().cpu().numpy()
