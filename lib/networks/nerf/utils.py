@@ -105,8 +105,8 @@ def get_rays(H, W, K, c2w):
     """
 
     i, j = torch.meshgrid(torch.linspace(0, W - 1, W), torch.linspace(0, H - 1, H), indexing='ij')
-    i = i.t()
-    j = j.t()
+    i = i.t().to(K.device)
+    j = j.t().to(K.device)
     # [400,400,3]
     # 从像素坐标系转换到归一化的相机坐标系
     dirs = torch.stack([(i - K[0][2]) / K[0][0], -(j - K[1][2]) / K[1][1], -torch.ones_like(i)], -1)
@@ -151,7 +151,7 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
 
     # Take uniform samples
     if det:
-        u = torch.linspace(0., 1., steps=N_samples)
+        u = torch.linspace(0., 1., steps=N_samples, device=cdf.device)
         u = u.expand(list(cdf.shape[:-1]) + [N_samples])
     else:
         u = torch.rand(list(cdf.shape[:-1]) + [N_samples], device=cdf.device)  # [bs,128]

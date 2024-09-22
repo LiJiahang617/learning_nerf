@@ -453,46 +453,52 @@ class Network(nn.Module):
         return rgb_map, disp_map, acc_map, weights, depth_map
 
     def forward(self, inputs):
+        # TODO: maybe more elegant here
+        if inputs['meta']['is_train'][0] == True:
+            # Cast intrinsics to right types
+            H, W, focal = inputs['hwf']
+            # TODO: avoid hardcode, 所有的HWF对于同一数据集应该相同，想更高效的传参方法
+            K = inputs['K'][0]
+            H, W, focal= int(H[0]), int(W[0]), int(focal[0])
+            # 随机选出N_rand个光线作为一个mini batch: N_rays, 3, 3
+            if self.use_batching:
+                # b, N_rays, 3, 3
+                batch = inputs['rays_rgb'][:, :self.N_rand].flatten(0, 1)
+                # 3, N_rays, 3
+                batch = torch.transpose(batch, 0, 1)
+                # batch_rays:(2, N_rays, 3), target_s:(N_rays, 3): label应该不需要额外通道1
+                batch_rays, target_s = batch[:2], batch[2]  # 前两个是rays_o和rays_d, 第三个是target就是image的rgb
+            else:
+                # FIXME: set this condition in the future after finish baseline in use_batching condition
+                image = inputs['img']
+                pose = inputs['pose']
+                rays_o, rays_d = get_rays(H, W, K, pose) # (H, W, 3), (H, W, 3)
+                coords = torch.stack(torch.meshgrid(torch.linspace(0, H - 1, H),
+                                                    torch.linspace(0, W - 1, W), indexing='ij'),
+                                     -1)  # (H, W, 2)
+                coords = torch.reshape(coords, [-1, 2])  # (H * W, 2)
+                # 生成一个随机的索引序列
+                select_inds = torch.randperm(coords.shape[0])[:self.N_rand]
+                select_coords = coords[select_inds].long()  # (N_rand, 2)
+                rays_o = rays_o[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
+                rays_d = rays_d[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
+                batch_rays = torch.stack([rays_o, rays_d], 0)  # 堆叠 o和d
+                # target 也同样选出对应位置的点
+                # target 用来最后的mse loss 计算
+                target_s = image[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
 
-        # Cast intrinsics to right types
-        H, W, focal = inputs['hwf']
-        # TODO: avoid hardcode, 所有的HWF对于同一数据集应该相同，想更高效的传参方法
-        K = inputs['K'][0]
-        H, W, focal= int(H[0]), int(W[0]), int(focal[0])
-        # 仅在测试时会用到这个hwf
-        hwf = [H, W, focal]
-        # 随机选出N_rand个光线作为一个mini batch: N_rays, 3, 3
-        if self.use_batching:
-            # b, N_rays, 3, 3
-            batch = inputs['rays_rgb'][:, :self.N_rand].flatten(0, 1)
-            # 3, N_rays, 3
-            batch = torch.transpose(batch, 0, 1)
-            # batch_rays:(2, N_rays, 3), target_s:(N_rays, 3): label应该不需要额外通道1
-            batch_rays, target_s = batch[:2], batch[2]  # 前两个是rays_o和rays_d, 第三个是target就是image的rgb
+            # rgb 网络计算出的图像
+            # 前三是精细网络的输出内容，其他的还保存在一个dict中，有5项
+            rgb, disp, acc, extras = self.render(H, W, K, chunk=self.chunk, rays=batch_rays,
+                                            verbose=False, retraw=True,
+                                            **self.render_kwargs_train)
+
         else:
-            # FIXME: set this condition in the future after finish baseline in use_batching condition
-            image = inputs['img']
-            pose = inputs['pose']
-            rays_o, rays_d = get_rays(H, W, K, pose) # (H, W, 3), (H, W, 3)
-            coords = torch.stack(torch.meshgrid(torch.linspace(0, H - 1, H),
-                                                torch.linspace(0, W - 1, W), indexing='ij'),
-                                 -1)  # (H, W, 2)
-            coords = torch.reshape(coords, [-1, 2])  # (H * W, 2)
-            # 生成一个随机的索引序列
-            select_inds = torch.randperm(coords.shape[0])[:self.N_rand]
-            select_coords = coords[select_inds].long()  # (N_rand, 2)
-            rays_o = rays_o[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
-            rays_d = rays_d[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
-            batch_rays = torch.stack([rays_o, rays_d], 0)  # 堆叠 o和d
-            # target 也同样选出对应位置的点
-            # target 用来最后的mse loss 计算
-            target_s = image[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
-
-        # rgb 网络计算出的图像
-        # 前三是精细网络的输出内容，其他的还保存在一个dict中，有5项
-        rgb, disp, acc, extras = self.render(H, W, K, chunk=self.chunk, rays=batch_rays,
-                                        verbose=False, retraw=True,
-                                        **self.render_kwargs_train)
+            H, W, focal = inputs['hwf']
+            K = inputs['K'][0]
+            H, W, focal = int(H[0]), int(W[0]), int(focal[0])
+            rgb, disp, acc, extras = self.render(H, W, K, chunk=self.chunk, c2w=inputs['pose'][0, :3, :4], **self.render_kwargs_test)
+            target_s = inputs['img'][0]
         ret = {}
         # 精细网络输出
         ret['rgb'] = rgb

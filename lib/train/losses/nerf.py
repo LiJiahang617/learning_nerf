@@ -18,7 +18,7 @@ class NetworkWrapper(nn.Module):
         loss = 0
         rgb = output['rgb'].view(batch_size, -1, 3)
         target_s = output['target_s'].view(batch_size, -1, 3)
-        color_loss = self.color_crit(rgb, target_s)
+        color_loss = self.color_crit(rgb.reshape(-1, 3), target_s.reshape(-1, 3))
         # detach()操作会生成一个新的张量，与原始张量共享数据，不会修改原始张量
         scalar_stats.update({'color_mse': color_loss})
         loss += color_loss

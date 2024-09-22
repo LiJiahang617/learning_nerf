@@ -12,7 +12,7 @@ evaluator_module: lib.evaluators.nerf
 visualizer_module: lib.visualizers.nerf
 
 task_arg:
-    N_rays: 1024 # number of rays per training iteration
+    N_rays: 2048 # number of rays per training iteration
     chunk_size: 4096 # chunkify
     white_bkgd: True # use white background
     no_batching: False

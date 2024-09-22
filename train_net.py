@@ -77,7 +77,8 @@ def test(cfg, network):
                          cfg.trained_model_dir,
                          resume=cfg.resume,
                          epoch=cfg.test.epoch)
-    trainer.val(epoch, val_loader, evaluator)
+    # modified here by Kobe Li for bugs: recorder = make_recorder(cfg)
+    trainer.val(epoch, val_loader, evaluator, recorder = make_recorder(cfg))
 
 def synchronize():
     """
